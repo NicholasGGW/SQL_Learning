@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据分析面试速成动画展示</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        .step-info {
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-left: 5px solid #3498db;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .step-title {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #2980b9;
+        }
+        .step-desc {
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            transition: all 0.5s ease;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .highlight {
+            background-color: #ffeb3b !important;
+            transition: background-color 0.5s;
+        }
+        .removed {
+            background-color: #ffcdd2 !important;
+            text-decoration: line-through;
+            opacity: 0.5;
+        }
+        .added {
+            background-color: #c8e6c9 !important;
+        }
+        code {
+            background-color: #272822;
+            color: #f8f8f2;
+            padding: 10px;
+            display: block;
+            border-radius: 5px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+        }
+        #sql-code-container {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🚀 数据分析面试速成动画展示</h1>
+    
+    <div class="controls">
+        <button id="prevBtn" onclick="prevStep()" disabled>上一步</button>
+        <button id="nextBtn" onclick="nextStep()">下一步</button>
+        <span style="margin-left: 15px; font-weight: bold;">步骤: <span id="stepCounter">1</span> / 6</span>
+    </div>
+
+    <div class="step-info">
+        <div class="step-title" id="stepTitle">步骤 1: 原始脏数据</div>
+        <div class="step-desc" id="stepDesc">这是我们刚从系统里抽出来的原始数据。请注意看标黄色的部分：有空值(NaN)、有重复行、有异常值(200岁)。</div>
+    </div>
+
+    <div id="sql-code-container">
+        <div class="step-title" style="margin-top: 10px;">执行的 SQL:</div>
+        <code id="sqlCode"></code>
+    </div>
+
+    <div id="table-container">
+        <!-- Table will be injected here -->
+    </div>
+</div>
+
+<script>
+    const steps = [
+        {
+            title: "步骤 1: 原始脏数据",
+            desc: "这是我们刚从系统里抽出来的原始数据。请注意看标黄色的部分：有空值(NaN)、有重复行、有异常值(200岁)。这些是我们需要做数据清洗的重点对象。",
+            sql: null,
+            tableHtml: `
+                <table>
+                    <tr><th>user_id</th><th>age</th><th>department</th><th>salary</th></tr>
+                    <tr><td>101</td><td>25</td><td>Sales</td><td>5000</td></tr>
+                    <tr class="highlight"><td>102</td><td>28</td><td>Tech</td><td>8000</td></tr>
+                    <tr class="highlight"><td>102</td><td>28</td><td>Tech</td><td>8000</td></tr>
+                    <tr><td>103</td><td>35</td><td>Sales</td><td>5500</td></tr>
+                    <tr class="highlight"><td>104</td><td>200</td><td>HR</td><td>4000</td></tr>
+                    <tr class="highlight"><td>105</td><td>22</td><td>NaN</td><td>NaN</td></tr>
+                    <tr class="highlight"><td>NaN</td><td>30</td><td>HR</td><td>4500</td></tr>
+                </table>
+            `
+        },
+        {
+            title: "步骤 2: 数据清洗 - 去空与去重",
+            desc: "首先，我们使用 Pandas (<code>dropna</code> 和 <code>drop_duplicates</code>) 删除了 <code>user_id</code> 为空的行，并对 <code>user_id</code> 进行了去重处理。红色的行将被丢弃。",
+            sql: null,
+            tableHtml: `
+                <table>
+                    <tr><th>user_id</th><th>age</th><th>department</th><th>salary</th></tr>
+                    <tr><td>101</td><td>25</td><td>Sales</td><td>5000</td></tr>
+                    <tr><td>102</td><td>28</td><td>Tech</td><td>8000</td></tr>
+                    <tr class="removed"><td>102</td><td>28</td><td>Tech</td><td>8000</td></tr>
+                    <tr><td>103</td><td>35</td><td>Sales</td><td>5500</td></tr>
+                    <tr><td>104</td><td>200</td><td>HR</td><td>4000</td></tr>
+                    <tr><td>105</td><td>22</td><td>NaN</td><td>NaN</td></tr>
+                    <tr class="removed"><td>NaN</td><td>30</td><td>HR</td><td>4500</td></tr>
+                </table>
+            `
+        },
+        {
+            title: "步骤 3: 数据清洗 - 处理异常值与填充空值",
+            desc: "接着，我们将年龄大于100的异常值(200)用均值(28)替换。对部门的空值填充了 'Unknown'，对薪水的空值填充了中位数(5250)。这就是<b>干净的数据</b>，准备用于建模和分析！",
+            sql: null,
+            tableHtml: `
+                <table>
+                    <tr><th>user_id</th><th>age</th><th>department</th><th>salary</th></tr>
+                    <tr><td>101</td><td>25</td><td>Sales</td><td>5000</td></tr>
+                    <tr><td>102</td><td>28</td><td>Tech</td><td>8000</td></tr>
+                    <tr><td>103</td><td>35</td><td>Sales</td><td>5500</td></tr>
+                    <tr class="added"><td>104</td><td>28</td><td>HR</td><td>4000</td></tr>
+                    <tr class="added"><td>105</td><td>22</td><td>Unknown</td><td>5250</td></tr>
+                </table>
+            `
+        },
+        {
+            title: "步骤 4: SQL 面试高频考点 - 分组聚合 (GROUP BY)",
+            desc: "有了干净的数据后，我们开始做统计。比如计算每个部门的员工人数和平均薪水。注意使用 <code>GROUP BY</code> 时配合聚合函数 <code>COUNT</code> 和 <code>AVG</code>。",
+            sql: "SELECT department,\n       COUNT(*) as emp_count,\n       AVG(salary) as avg_salary \nFROM employees \nGROUP BY department;",
+            tableHtml: `
+                <table>
+                    <tr><th>department</th><th>emp_count</th><th>avg_salary</th></tr>
+                    <tr><td>HR</td><td>1</td><td>4000.0</td></tr>
+                    <tr><td>Sales</td><td>2</td><td>5250.0</td></tr>
+                    <tr><td>Tech</td><td>1</td><td>8000.0</td></tr>
+                    <tr><td>Unknown</td><td>1</td><td>5250.0</td></tr>
+                </table>
+            `
+        },
+        {
+            title: "步骤 5: SQL 面试高频考点 - 左连接 (LEFT JOIN)",
+            desc: "在建模中我们通常会有“维度表”（如部门详情）。我们用 <code>LEFT JOIN</code> 把员工表和部门表连接起来获取 location 信息。由于 'Unknown' 部门在部门表里不存在，所以对应位置补了 NULL。",
+            sql: "SELECT e.user_id, e.department, d.location, e.salary\nFROM employees e\nLEFT JOIN departments d \nON e.department = d.dept_name;",
+            tableHtml: `
+                <table>
+                    <tr><th>user_id</th><th>department</th><th>location</th><th>salary</th></tr>
+                    <tr><td>101</td><td>Sales</td><td>Beijing</td><td>5000</td></tr>
+                    <tr><td>102</td><td>Tech</td><td>Shanghai</td><td>8000</td></tr>
+                    <tr><td>103</td><td>Sales</td><td>Beijing</td><td>5500</td></tr>
+                    <tr><td>104</td><td>HR</td><td>Shenzhen</td><td>4000</td></tr>
+                    <tr class="highlight"><td>105</td><td>Unknown</td><td>NULL</td><td>5250</td></tr>
+                </table>
+            `
+        },
+        {
+            title: "步骤 6: SQL 面试杀手锏 - 窗口函数 (ROW_NUMBER)",
+            desc: "面试极其高频考点：求每个部门内部的薪水排名。<br>公式：<code>ROW_NUMBER() OVER(PARTITION BY 分组列 ORDER BY 排序列 DESC)</code>",
+            sql: "SELECT user_id, department, salary,\n       ROW_NUMBER() OVER(PARTITION BY department ORDER BY salary DESC) as salary_rank\nFROM employees;",
+            tableHtml: `
+                <table>
+                    <tr><th>user_id</th><th>department</th><th>salary</th><th>salary_rank</th></tr>
+                    <tr><td>104</td><td>HR</td><td>4000</td><td class="added">1</td></tr>
+                    <tr><td>103</td><td>Sales</td><td>5500</td><td class="added">1</td></tr>
+                    <tr><td>101</td><td>Sales</td><td>5000</td><td class="added">2</td></tr>
+                    <tr><td>102</td><td>Tech</td><td>8000</td><td class="added">1</td></tr>
+                    <tr><td>105</td><td>Unknown</td><td>5250</td><td class="added">1</td></tr>
+                </table>
+            `
+        }
+    ];
+
+    let currentStep = 0;
+
+    function renderStep() {
+        const step = steps[currentStep];
+        document.getElementById('stepTitle').innerHTML = step.title;
+        document.getElementById('stepDesc').innerHTML = step.desc;
+        document.getElementById('table-container').innerHTML = step.tableHtml;
+        document.getElementById('stepCounter').innerText = currentStep + 1;
+
+        const sqlContainer = document.getElementById('sql-code-container');
+        if (step.sql) {
+            sqlContainer.style.display = 'block';
+            document.getElementById('sqlCode').innerText = step.sql;
+        } else {
+            sqlContainer.style.display = 'none';
+        }
+
+        document.getElementById('prevBtn').disabled = currentStep === 0;
+        document.getElementById('nextBtn').disabled = currentStep === steps.length - 1;
+    }
+
+    function nextStep() {
+        if (currentStep < steps.length - 1) {
+            currentStep++;
+            renderStep();
+        }
+    }
+
+    function prevStep() {
+        if (currentStep > 0) {
+            currentStep--;
+            renderStep();
+        }
+    }
+
+    // Initialize
+    renderStep();
+</script>
+
+</body>
+</html>
