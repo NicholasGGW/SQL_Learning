@@ -107,14 +107,20 @@ ORDER BY AVERAGE_SCORE DESC;
 -- ===================================================================
 -- 第 22 题：查询每门课程的及格人数和不及格人数
 -- ===================================================================
-SELECT sc.scoure,
-       c.cname,
-       SUM(CASE WHEN sc.sscore >= 60 THEN 1 ELSE 0 END) AS PASS_COUNT,
-       SUM(CASE WHEN sc.sscore <  60 THEN 1 ELSE 0 END) AS FAIL_COUNT
-FROM score sc
-LEFT JOIN course c ON sc.scoure = c.scoure
-GROUP BY sc.scoure, c.cname
-ORDER BY sc.scoure;
+SELECT scoure,
+       SUM(PASS_COUNT) AS PASS_COUNT,
+       SUM(FAIL_COUNT) AS FAIL_COUNT
+FROM (
+    SELECT scoure, COUNT(1) AS PASS_COUNT, 0 AS FAIL_COUNT
+    FROM score WHERE sscore >= 60
+    GROUP BY scoure
+    UNION ALL
+    SELECT scoure, 0 AS PASS_COUNT, COUNT(1) AS FAIL_COUNT
+    FROM score WHERE sscore < 60
+    GROUP BY scoure
+)
+GROUP BY scoure
+ORDER BY scoure;
 
 
 -- ===================================================================
