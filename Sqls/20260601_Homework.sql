@@ -115,7 +115,7 @@ GROUP BY score.scoure;
 
 
 -- 7、查询每门课程参加考试的学生数
-SELECT score.scoure,COUNT(1)
+SELECT score.scoure,COUNT(DISTINCT score.sid) --- 假设一个人可以考多次
 FROM score
 GROUP BY score.scoure;
 
@@ -136,16 +136,25 @@ WHERE AVERAGE_SCORE > 80;
  
 -- 10、查询至少参加两门课程考试的学生学号、参加考试的课程数
 SELECT * 
-FROM (SELECT score.sid, COUNT(score.scoure) AS COURE_COUNT
+FROM (SELECT score.sid, COUNT(DISTINCT score.scoure) AS COURE_COUNT
 FROM score
 GROUP BY score.sid)
 WHERE COURE_COUNT >= 2;
 
  
--- 11、查询同名同姓学生名单并统计人数
+-- 11、查询同名同性学生名单并统计人数
+-- 同名同姓
 SELECT student.sname, COUNT(student.sid) 
 FROM student
 GROUP BY student.sname;
+-- 同名同性
+select 
+       sname,
+       sgender,
+       count(*)
+from student
+group by sname, sgender
+having count(*)>1;
 
  
 -- 12、查询分数高于70的课程成绩并按分数从大到小排序
@@ -175,6 +184,12 @@ FROM student
 LEFT JOIN score 
           ON student.sid = score.sid
 --- 可优化
+SELECT st.sname, c.cname, sc.sscore
+FROM student st
+INNER JOIN score sc   ON st.sid = sc.sid
+INNER JOIN course c   ON sc.scoure = c.scoure
+ORDER BY st.sid, c.scoure;
+
 
 --16、查询分数都在85分（含）以上的学生姓名、平均成绩
 
@@ -210,52 +225,126 @@ FROM student
 LEFT JOIN score 
           ON student.sid = score.sid
 GROUP BY student.sid, student.sname
-HAVING score.sscore IS NULL AND IS NOT NULL
-ORDER BY student.sid
+HAVING COUNT(score.scoure) < (SELECT COUNT(1) FROM course)
+ORDER BY student.sid;
 
     
 --19、查询出只选修了两门课程的全部学生的学号和姓名
-
+SELECT student.sid, student.sname
+FROM student
+INNER JOIN score 
+           ON student.sid = score.sid
+GROUP BY student.sid, student.sname
+HAVING COUNT(score.scoure) = 2
+ORDER BY student.sid;
 
 
 --20、查询所有学生的学号、姓名、选课数、总成绩
-
+SELECT st.sid,
+       st.sname,
+       COUNT(sc.scoure) AS COURE_COUNT,
+       NVL(SUM(sc.sscore), 0) AS TOTAL_SCORE
+FROM student st
+LEFT JOIN score sc 
+          ON st.sid = sc.sid
+GROUP BY st.sid, st.sname
+ORDER BY st.sid;
 
  
 --21、查询平均成绩大于85的所有学生的学号、姓名和平均成绩
-
+SELECT st.sid, st.sname, AVG(sc.sscore) AS AVERAGE_SCORE
+FROM student st
+INNER JOIN score sc 
+           ON st.sid = sc.sid
+GROUP BY st.sid, st.sname
+HAVING AVG(sc.sscore) > 85
+ORDER BY AVERAGE_SCORE DESC;
 
 
 --22、查询出每门课程的及格人数和不及格人数
-
+SELECT sc.scoure,
+       c.cname,
+       SUM(CASE WHEN sc.sscore >= 60 THEN 1 ELSE 0 END) AS PASS_COUNT,
+       SUM(CASE WHEN sc.sscore <  60 THEN 1 ELSE 0 END) AS FAIL_COUNT
+FROM score sc
+LEFT JOIN course c 
+          ON sc.scoure = c.scoure
+GROUP BY sc.scoure, c.cname
+ORDER BY sc.scoure;
 
  
 --23、查询课程编号为3且课程成绩在80分以上的学生的学号和姓名
-
+SELECT st.sid, st.sname
+FROM student st
+INNER JOIN score sc 
+           ON st.sid = sc.sid
+WHERE sc.scoure = 3 AND sc.sscore >= 80
+ORDER BY st.sid;
 
  
 --24、检索编号1课程分数小于90，按照分数降序排列的学生信息
-
+SELECT st.sid, st.sname, st.sbirth, st.sgender, sc.sscore
+FROM student st
+INNER JOIN score sc 
+      ON st.sid = sc.sid
+WHERE sc.scoure = 1 AND sc.sscore < 90
+ORDER BY sc.sscore DESC;
 
  
 --25、查询不同老师所教授不同课程平均分从高到低显示
-
+SELECT t.tname         AS TEACHER,
+       c.cname         AS COURCE_NAME,
+       AVG(sc.sscore)  AS AVERAGE_SCORE
+FROM teacher t
+INNER JOIN course c  ON t.cteacher = c.cteacher
+INNER JOIN score sc  ON c.scoure   = sc.scoure
+GROUP BY t.tname, c.cname
+ORDER BY AVERAGE_SCORE DESC;
 
 
 --26、查询课程名称为"数学"，且分数低于60的学生姓名和分数
-
+SELECT st.sname, sc.sscore
+FROM student st
+INNER JOIN score sc  ON st.sid    = sc.sid
+INNER JOIN course c  ON sc.scoure = c.scoure
+WHERE c.cname = '数学' AND sc.sscore < 60
+ORDER BY sc.sscore DESC;
 
 
 --27、查询任何一门课程成绩在70分以上的学生信息
-
+SELECT DISTINCT st.*
+FROM student st
+INNER JOIN score sc ON st.sid = sc.sid
+WHERE sc.sscore >= 70
+ORDER BY st.sid;
 
  
 --28、查询两门及其以上不及格课程的同学的学号，姓名及其平均成绩
-
+SELECT st.sid, st.sname, AVG(sc.sscore) AS AVERAGE_SCORE
+FROM student st
+INNER JOIN score sc ON st.sid = sc.sid
+GROUP BY st.sid, st.sname
+HAVING SUM(CASE WHEN sc.sscore < 60 THEN 1 ELSE 0 END) >= 2
+ORDER BY st.sid;
  
  
 --29、查询所有课程成绩小于60分学生的学号、姓名
-
+SELECT st.sid, st.sname
+FROM student st
+INNER JOIN score sc ON st.sid = sc.sid
+GROUP BY st.sid, st.sname
+HAVING MAX(sc.sscore) < 60
+ORDER BY st.sid;
 
 
 --30、查询没学过"孟扎扎"老师讲授的任一门课程的学生姓名
+SELECT st.sname
+FROM student st
+WHERE st.sid NOT IN (
+    SELECT DISTINCT sc.sid
+    FROM score sc
+    INNER JOIN course c  ON sc.scoure   = c.scoure
+    INNER JOIN teacher t ON c.cteacher  = t.cteacher
+    WHERE t.tname = '孟扎扎'
+)
+ORDER BY st.sname;

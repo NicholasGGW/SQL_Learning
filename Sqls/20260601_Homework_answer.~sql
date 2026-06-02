@@ -1,0 +1,240 @@
+-- ###作业答案文件 - 20260601###
+-- 表结构说明：
+--   student(sid 学号, sname 姓名, sbirth 出生年月, sgender 性别)
+--   score(sid 学号, scoure 课程号, sscore 成绩)
+--   course(scoure 课程号, cname 课程名称, cteacher 教师号)
+--   teacher(cteacher 教师号, tname 教师姓名)
+-- 注：参加了考试的课程视为选修的课程
+
+
+-- ===================================================================
+-- 第 15 题：查询参加考试的学生姓名、考试课程、分数
+-- ===================================================================
+-- 原写法（正确，但 LEFT JOIN 会把没参加任何考试的学生也带出来，sscore 为 NULL）
+SELECT student.sname, score.scoure, score.sscore
+FROM student
+LEFT JOIN score
+          ON student.sid = score.sid;
+
+-- 优化：用 INNER JOIN + 关联 course 表展示课程名称
+SELECT st.sname, c.cname, sc.sscore
+FROM student st
+INNER JOIN score sc   ON st.sid = sc.sid
+INNER JOIN course c   ON sc.scoure = c.scoure
+ORDER BY st.sid, c.scoure;
+
+
+-- ===================================================================
+-- 第 17 题：查询所有课程成绩均小于 80 分学生的学号、姓名
+-- ===================================================================
+-- 补回 OR MAX IS NULL，纳入没参加任何考试的学生
+SELECT student.sid, student.sname
+FROM student
+LEFT JOIN score ON student.sid = score.sid
+GROUP BY student.sid, student.sname
+HAVING MAX(score.sscore) < 80 OR MAX(score.sscore) IS NULL
+ORDER BY student.sid;
+
+-- 替代写法：NOT EXISTS，语义更直观
+SELECT student.sid, student.sname
+FROM student
+WHERE NOT EXISTS (
+    SELECT 1 FROM score
+    WHERE score.sid = student.sid AND score.sscore >= 80
+)
+ORDER BY student.sid;
+
+
+-- ===================================================================
+-- 第 18 题：查询没有参加全部课程考试的学生的学号、姓名
+-- ===================================================================
+-- 原写法语法错误，修正为：参加课程数 < 课程总数
+SELECT student.sid, student.sname
+FROM student
+LEFT JOIN score ON student.sid = score.sid
+GROUP BY student.sid, student.sname
+HAVING COUNT(score.scoure) < (SELECT COUNT(1) FROM course)
+ORDER BY student.sid;
+
+-- 替代写法：双层 NOT EXISTS
+SELECT student.sid, student.sname
+FROM student
+WHERE EXISTS (
+    SELECT 1 FROM course
+    WHERE NOT EXISTS (
+        SELECT 1 FROM score
+        WHERE score.sid = student.sid AND score.scoure = course.scoure
+    )
+)
+ORDER BY student.sid;
+
+
+-- ===================================================================
+-- 第 19 题：查询只选修了两门课程的全部学生的学号和姓名
+-- ===================================================================
+SELECT student.sid, student.sname
+FROM student
+INNER JOIN score ON student.sid = score.sid
+GROUP BY student.sid, student.sname
+HAVING COUNT(score.scoure) = 2
+ORDER BY student.sid;
+
+
+-- ===================================================================
+-- 第 20 题：查询所有学生的学号、姓名、选课数、总成绩
+-- ===================================================================
+SELECT st.sid,
+       st.sname,
+       COUNT(sc.scoure)       AS COURE_COUNT,
+       NVL(SUM(sc.sscore), 0) AS TOTAL_SCORE
+FROM student st
+LEFT JOIN score sc ON st.sid = sc.sid
+GROUP BY st.sid, st.sname
+ORDER BY st.sid;
+
+
+-- ===================================================================
+-- 第 21 题：查询平均成绩大于 85 的所有学生的学号、姓名和平均成绩
+-- ===================================================================
+SELECT st.sid, st.sname, AVG(sc.sscore) AS AVERAGE_SCORE
+FROM student st
+INNER JOIN score sc ON st.sid = sc.sid
+GROUP BY st.sid, st.sname
+HAVING AVG(sc.sscore) > 85
+ORDER BY AVERAGE_SCORE DESC;
+
+
+-- ===================================================================
+-- 第 22 题：查询每门课程的及格人数和不及格人数
+-- ===================================================================
+SELECT score.scoure,
+       course.cname,
+       SUM(CASE WHEN score.sscore >= 60 THEN 1 ELSE 0 END) AS PASS_COUNT,
+       SUM(CASE WHEN score.sscore <  60 THEN 1 ELSE 0 END) AS FAIL_COUNT
+FROM score
+LEFT JOIN course 
+          ON score.scoure = course.scoure
+GROUP BY score.scoure, course.cname
+ORDER BY score.scoure;
+
+
+-- ===================================================================
+-- 第 23 题：查询课程编号为 3 且课程成绩在 80 分以上的学生的学号和姓名
+-- ===================================================================
+SELECT st.sid, st.sname
+FROM student st
+INNER JOIN score sc ON st.sid = sc.sid
+WHERE sc.scoure = 3 AND sc.sscore >= 80
+ORDER BY st.sid;
+
+
+-- ===================================================================
+-- 第 24 题：检索课程编号 1 课程分数小于 90，按照分数降序排列的学生信息
+-- ===================================================================
+SELECT st.sid, st.sname, st.sbirth, st.sgender, sc.sscore
+FROM student st
+INNER JOIN score sc ON st.sid = sc.sid
+WHERE sc.scoure = 1 AND sc.sscore < 90
+ORDER BY sc.sscore DESC;
+
+
+-- ===================================================================
+-- 第 25 题：查询不同老师所教授不同课程平均分从高到低显示
+-- ===================================================================
+SELECT t.tname         AS 教师姓名,
+       c.cname         AS 课程名称,
+       AVG(sc.sscore)  AS AVERAGE_SCORE
+FROM teacher t
+INNER JOIN course c  ON t.cteacher = c.cteacher
+INNER JOIN score sc  ON c.scoure   = sc.scoure
+GROUP BY t.tname, c.cname
+ORDER BY AVERAGE_SCORE DESC;
+
+
+-- ===================================================================
+-- 第 26 题：查询课程名称为"数学"，且分数低于 60 的学生姓名和分数
+-- ===================================================================
+SELECT st.sname, sc.sscore
+FROM student st
+INNER JOIN score sc  ON st.sid    = sc.sid
+INNER JOIN course c  ON sc.scoure = c.scoure
+WHERE c.cname = '数学' AND sc.sscore < 60
+ORDER BY sc.sscore DESC;
+
+
+-- ===================================================================
+-- 第 27 题：查询任何一门课程成绩在 70 分以上的学生信息
+-- ===================================================================
+SELECT DISTINCT st.*
+FROM student st
+INNER JOIN score sc ON st.sid = sc.sid
+WHERE sc.sscore >= 70
+ORDER BY st.sid;
+
+-- 替代写法：EXISTS，避免 DISTINCT 扫描
+SELECT st.*
+FROM student st
+WHERE EXISTS (
+    SELECT 1 FROM score sc
+    WHERE sc.sid = st.sid AND sc.sscore >= 70
+)
+ORDER BY st.sid;
+
+
+-- ===================================================================
+-- 第 28 题：查询两门及其以上不及格课程的同学的学号、姓名及其平均成绩
+-- ===================================================================
+SELECT st.sid, st.sname, AVG(sc.sscore) AS AVERAGE_SCORE
+FROM student st
+INNER JOIN score sc ON st.sid = sc.sid
+GROUP BY st.sid, st.sname
+HAVING SUM(CASE WHEN sc.sscore < 60 THEN 1 ELSE 0 END) >= 2
+ORDER BY st.sid;
+
+
+-- ===================================================================
+-- 第 29 题：查询所有课程成绩小于 60 分学生的学号、姓名
+-- ===================================================================
+SELECT st.sid, st.sname
+FROM student st
+INNER JOIN score sc ON st.sid = sc.sid
+GROUP BY st.sid, st.sname
+HAVING MAX(sc.sscore) < 60
+ORDER BY st.sid;
+
+-- 替代写法：NOT EXISTS
+SELECT st.sid, st.sname
+FROM student st
+WHERE EXISTS (SELECT 1 FROM score sc WHERE sc.sid = st.sid)
+  AND NOT EXISTS (
+    SELECT 1 FROM score sc
+    WHERE sc.sid = st.sid AND sc.sscore >= 60
+  )
+ORDER BY st.sid;
+
+
+-- ===================================================================
+-- 第 30 题：查询没学过"孟扎扎"老师讲授的任一门课程的学生姓名
+-- ===================================================================
+SELECT st.sname
+FROM student st
+WHERE st.sid NOT IN (
+    SELECT DISTINCT sc.sid
+    FROM score sc
+    INNER JOIN course c  ON sc.scoure   = c.scoure
+    INNER JOIN teacher t ON c.cteacher  = t.cteacher
+    WHERE t.tname = '孟扎扎'
+)
+ORDER BY st.sname;
+
+-- 替代写法：NOT EXISTS（更安全，避免 NOT IN 遇 NULL 返回空集）
+SELECT st.sname
+FROM student st
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM score sc
+    INNER JOIN course c  ON sc.scoure  = c.scoure
+    INNER JOIN teacher t ON c.cteacher = t.cteacher
+    WHERE sc.sid = st.sid AND t.tname = '孟扎扎'
+)
+ORDER BY st.sname;
