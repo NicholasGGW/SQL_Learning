@@ -136,16 +136,25 @@ WHERE AVERAGE_SCORE > 80;
  
 -- 10、查询至少参加两门课程考试的学生学号、参加考试的课程数
 SELECT * 
-FROM (SELECT score.sid, COUNT(score.scoure) AS COURE_COUNT
+FROM (SELECT score.sid, COUNT(DISTINCT score.scoure) AS COURE_COUNT
 FROM score
 GROUP BY score.sid)
 WHERE COURE_COUNT >= 2;
 
  
--- 11、查询同名同姓学生名单并统计人数
+-- 11、查询同名同性学生名单并统计人数
+-- 同名同姓
 SELECT student.sname, COUNT(student.sid) 
 FROM student
 GROUP BY student.sname;
+-- 同名同性
+select 
+       sname,
+       sgender,
+       count(*)
+from student
+group by sname, sgender
+having count(*)>1;
 
  
 -- 12、查询分数高于70的课程成绩并按分数从大到小排序
@@ -168,18 +177,29 @@ FROM score
 GROUP BY score.sid
 ORDER BY TOTAL_SCORE DESC;
 
+SELECT T1.sid,
+       SUM(T2.sscore) AS 总成绩
+FROM student T1
+LEFT JOIN score T2
+ON T1.sid=T2.sid
+GROUP BY T1.sid
+ORDER BY NVL(总成绩,0) DESC;
+
 
 --15、查询参加考试的学生姓名、考试课程、分数
 SELECT student.sname, score.scoure, score.sscore 
 FROM student
 LEFT JOIN score 
           ON student.sid = score.sid
+WHERE score.sscore IS NOT NULL
 --- 可优化
-SELECT st.sname, c.cname, sc.sscore
-FROM student st
-INNER JOIN score sc   ON st.sid = sc.sid
-INNER JOIN course c   ON sc.scoure = c.scoure
-ORDER BY st.sid, c.scoure;
+SELECT student.sname, course.cname, score.sscore
+FROM student
+INNER JOIN score 
+           ON student.sid = score.sid
+INNER JOIN course   
+           ON score.scoure = course.scoure
+ORDER BY student.sid, course.scoure;
 
 
 --16、查询分数都在85分（含）以上的学生姓名、平均成绩
@@ -216,7 +236,7 @@ FROM student
 LEFT JOIN score 
           ON student.sid = score.sid
 GROUP BY student.sid, student.sname
-HAVING COUNT(score.scoure) < (SELECT COUNT(1) FROM course)
+HAVING COUNT(DISTINCT score.scoure) < (SELECT COUNT(1) FROM course) --假设可以重复考
 ORDER BY student.sid;
 
     
@@ -226,97 +246,107 @@ FROM student
 INNER JOIN score 
            ON student.sid = score.sid
 GROUP BY student.sid, student.sname
-HAVING COUNT(score.scoure) = 2
+HAVING COUNT(DISTINCT score.scoure) = 2 --假设可以重复考
 ORDER BY student.sid;
 
 
 --20、查询所有学生的学号、姓名、选课数、总成绩
-SELECT st.sid,
-       st.sname,
-       COUNT(sc.scoure) AS COURE_COUNT,
-       NVL(SUM(sc.sscore), 0) AS TOTAL_SCORE
-FROM student st
-LEFT JOIN score sc 
-          ON st.sid = sc.sid
-GROUP BY st.sid, st.sname
-ORDER BY st.sid;
+SELECT student.sid,
+       student.sname,
+       COUNT(score.scoure) AS COURE_COUNT,
+       NVL(SUM(score.sscore), 0) AS TOTAL_SCORE
+FROM student
+LEFT JOIN score
+          ON student.sid = score.sid
+GROUP BY student.sid, student.sname
+ORDER BY student.sid;
 
  
 --21、查询平均成绩大于85的所有学生的学号、姓名和平均成绩
-SELECT st.sid, st.sname, AVG(sc.sscore) AS AVERAGE_SCORE
-FROM student st
+SELECT student.sid, student.sname, AVG(score.sscore) AS AVERAGE_SCORE
+FROM student
 INNER JOIN score sc 
-           ON st.sid = sc.sid
-GROUP BY st.sid, st.sname
-HAVING AVG(sc.sscore) > 85
+           ON student.sid = score.sid
+GROUP BY student.sid, student.sname
+HAVING AVG(score.sscore) > 85
 ORDER BY AVERAGE_SCORE DESC;
 
 
 --22、查询出每门课程的及格人数和不及格人数
-SELECT sc.scoure,
-       c.cname,
-       SUM(CASE WHEN sc.sscore >= 60 THEN 1 ELSE 0 END) AS PASS_COUNT,
-       SUM(CASE WHEN sc.sscore <  60 THEN 1 ELSE 0 END) AS FAIL_COUNT
-FROM score sc
-LEFT JOIN course c 
-          ON sc.scoure = c.scoure
-GROUP BY sc.scoure, c.cname
-ORDER BY sc.scoure;
+SELECT scoure,
+       SUM(PASS_COUNT) AS PASS_COUNT,
+       SUM(FAIL_COUNT) AS FAIL_COUNT
+FROM (
+    SELECT scoure, COUNT(1) AS PASS_COUNT, 0 AS FAIL_COUNT
+    FROM score WHERE sscore >= 60
+    GROUP BY scoure
+    UNION ALL
+    SELECT scoure, 0 AS PASS_COUNT, COUNT(1) AS FAIL_COUNT
+    FROM score WHERE sscore < 60
+    GROUP BY scoure
+)
+GROUP BY scoure;
 
  
 --23、查询课程编号为3且课程成绩在80分以上的学生的学号和姓名
-SELECT st.sid, st.sname
-FROM student st
-INNER JOIN score sc 
-           ON st.sid = sc.sid
-WHERE sc.scoure = 3 AND sc.sscore >= 80
-ORDER BY st.sid;
+SELECT student.sid, student.sname
+FROM student
+INNER JOIN score
+           ON student.sid = score.sid
+WHERE score.scoure = 3 AND score.sscore >= 80
+ORDER BY student.sid;
 
  
 --24、检索编号1课程分数小于90，按照分数降序排列的学生信息
-SELECT st.sid, st.sname, st.sbirth, st.sgender, sc.sscore
-FROM student st
-INNER JOIN score sc 
-      ON st.sid = sc.sid
-WHERE sc.scoure = 1 AND sc.sscore < 90
-ORDER BY sc.sscore DESC;
+SELECT student.sid, student.sname, student.sbirth, student.sgender, score.sscore
+FROM student
+LEFT JOIN score
+      ON student.sid = score.sid
+WHERE score.scoure = 1 AND score.sscore < 90;
 
  
 --25、查询不同老师所教授不同课程平均分从高到低显示
-SELECT t.tname         AS TEACHER,
-       c.cname         AS COURCE_NAME,
-       AVG(sc.sscore)  AS AVERAGE_SCORE
-FROM teacher t
-INNER JOIN course c  ON t.cteacher = c.cteacher
-INNER JOIN score sc  ON c.scoure   = sc.scoure
-GROUP BY t.tname, c.cname
+--主表是teacher
+SELECT teacher.cteacher AS TEACHER_ID,
+       teacher.tname AS TEACHER_NAME,
+       course.cname AS COURCE_NAME,
+       AVG(score.sscore) AS AVERAGE_SCORE
+FROM teacher
+LEFT JOIN course  
+          ON teacher.cteacher = course.cteacher
+LEFT JOIN score  
+          ON course.scoure   = score.scoure
+WHERE course.cname IS NOT NULL
+GROUP BY teacher.cteacher, teacher.tname, course.cname
 ORDER BY AVERAGE_SCORE DESC;
 
 
+
 --26、查询课程名称为"数学"，且分数低于60的学生姓名和分数
-SELECT st.sname, sc.sscore
-FROM student st
-INNER JOIN score sc  ON st.sid    = sc.sid
-INNER JOIN course c  ON sc.scoure = c.scoure
-WHERE c.cname = '数学' AND sc.sscore < 60
-ORDER BY sc.sscore DESC;
+SELECT student.sname, score.sscore
+FROM student
+LEFT JOIN score  
+           ON student.sid    = score.sid
+LEFT JOIN course
+           ON score.scoure = course.scoure
+WHERE course.cname = '数学' AND score.sscore < 60;
 
 
 --27、查询任何一门课程成绩在70分以上的学生信息
-SELECT DISTINCT st.*
-FROM student st
-INNER JOIN score sc ON st.sid = sc.sid
-WHERE sc.sscore >= 70
-ORDER BY st.sid;
+SELECT DISTINCT student.*
+FROM student
+LEFT JOIN score 
+          ON student.sid = score.sid
+WHERE score.sscore >= 70;
 
  
 --28、查询两门及其以上不及格课程的同学的学号，姓名及其平均成绩
-SELECT st.sid, st.sname, AVG(sc.sscore) AS AVERAGE_SCORE
-FROM student st
-INNER JOIN score sc ON st.sid = sc.sid
-GROUP BY st.sid, st.sname
-HAVING SUM(CASE WHEN sc.sscore < 60 THEN 1 ELSE 0 END) >= 2
-ORDER BY st.sid;
+SELECT student.sid, student.sname, AVG(score.sscore) AS AVERAGE_SCORE
+FROM student
+INNER JOIN score
+           ON student.sid = score.sid
+GROUP BY student.sid, student.sname
+HAVING SUM(CASE WHEN score.sscore < 60 THEN 1 ELSE 0 END) >= 2;
  
  
 --29、查询所有课程成绩小于60分学生的学号、姓名
