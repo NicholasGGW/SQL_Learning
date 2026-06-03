@@ -9,7 +9,7 @@ SELECT INSTR('AHDSADVBDS', 'D', 4, 2) FROM DUAL;
 
 --3 从 '15min' 这个字符串 得到 15;
 SELECT REPLACE('15min', 'min', '') FROM DUAL;
-SELECT SUBSTR('15min', 1, 2) FROM DUAL;
+SELECT SUBSTR('15min', INSTR('15min', '15'), 2) FROM DUAL;
 
 --5 将字符串'###abcdefg***h'截取成'abcdefg';
 SELECT SUBSTR('###abcdefg***h', 4, 7) FROM DUAL;
@@ -47,12 +47,22 @@ FROM EMP;
 SELECT RPAD(SUBSTR(ENAME, 1, 2), LENGTH(ENAME), '*') AS ENAME_NEW 
 FROM EMP;
 
+--RPAD的第二个参数是字节的长度，不是字符的长度，所以当姓名中有中文时，第二个参数需要乘以2
+SELECT RPAD(SUBSTR(ENAME, 1, 2), LENGTH(ENAME) * 2, '*') AS ENAME_NEW 
+FROM EMP;
+
+--如果是中英文混合的姓名，可以使用以下方法：
+SELECT RPAD(SUBSTR(ENAME, 1, 2), LENGTHB(ENAME), '*') AS ENAME_NEW 
+FROM EMP;
+--但这种方法不适用于纯英文姓名，因为LENGTHB函数会将每个英文字符计算为1，而每个中文字符计算为2，这可能导致英文姓名的脱敏结果不正确.
 
 
 
-
-
-
+--所以用以下方法更通用：
+SELECT ENAME AS 原名字,
+       SUBSTR(ENAME,1,2) ||
+       RPAD('**',LENGTH(ENAME)-2,'*')
+FROM EMP
 
 
 

@@ -1,3 +1,6 @@
+
+ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY/MM/DD';
+
 -- ###一、创建数据库和表，查找建表语句和插入语句的错误，注意不能修改表名和列名。并完成如下的建表操作。###
 /*
  *学生表：student(学号,学生姓名,出生年月,性别)
@@ -265,11 +268,10 @@ ORDER BY student.sid;
 --21、查询平均成绩大于85的所有学生的学号、姓名和平均成绩
 SELECT student.sid, student.sname, AVG(score.sscore) AS AVERAGE_SCORE
 FROM student
-INNER JOIN score sc 
+INNER JOIN score 
            ON student.sid = score.sid
 GROUP BY student.sid, student.sname
-HAVING AVG(score.sscore) > 85
-ORDER BY AVERAGE_SCORE DESC;
+HAVING AVG(score.sscore) > 85;
 
 
 --22、查询出每门课程的及格人数和不及格人数
@@ -287,6 +289,21 @@ FROM (
 )
 GROUP BY scoure;
 
+
+--法2
+SELECT course.CNAME, NVL(PASS.CNT, 0) AS PASS_COUNT, NVL(FAIL.CNT, 0) AS FAIL_COUNT
+FROM course
+LEFT JOIN (
+SELECT scoure, count(sid) AS CNT
+FROM score
+WHERE sscore >= 60
+GROUP BY scoure ) PASS ON course.scoure = PASS.scoure
+LEFT JOIN (
+SELECT scoure, count(sid) AS CNT
+FROM score
+WHERE sscore < 60
+GROUP BY scoure ) FAIL ON course.scoure = FAIL.scoure
+
  
 --23、查询课程编号为3且课程成绩在80分以上的学生的学号和姓名
 SELECT student.sid, student.sname
@@ -296,13 +313,25 @@ INNER JOIN score
 WHERE score.scoure = 3 AND score.sscore >= 80
 ORDER BY student.sid;
 
+--先过滤再关联
+SELECT student.sid, student.sname
+FROM (SELECT sid, sscore
+      FROM score
+      WHERE scoure = 3 AND sscore >= 80) score
+INNER JOIN (SELECT sid, sname
+            FROM student) student
+           ON score.sid = student.sid
+
  
 --24、检索编号1课程分数小于90，按照分数降序排列的学生信息
 SELECT student.sid, student.sname, student.sbirth, student.sgender, score.sscore
 FROM student
 LEFT JOIN score
       ON student.sid = score.sid
-WHERE score.scoure = 1 AND score.sscore < 90;
+WHERE score.scoure = 1 AND score.sscore < 90
+ORDER BY score.sscore DESC;
+
+--成绩表作为主表
 
  
 --25、查询不同老师所教授不同课程平均分从高到低显示
@@ -347,25 +376,52 @@ INNER JOIN score
            ON student.sid = score.sid
 GROUP BY student.sid, student.sname
 HAVING SUM(CASE WHEN score.sscore < 60 THEN 1 ELSE 0 END) >= 2;
- 
- 
+--或者
+SELECT  student.sid, student.sname, AVG(score.sscore) AS AVERAGE_SCORE
+FROM student
+INNER JOIN score
+           ON student.sid = score.sid
+WHERE student.sid IN (
+    SELECT sid
+    FROM score
+    WHERE sscore < 60
+    GROUP BY sid
+    HAVING COUNT(1) >= 2
+)
+GROUP BY student.sid, student.sname;
+
 --29、查询所有课程成绩小于60分学生的学号、姓名
-SELECT st.sid, st.sname
-FROM student st
-INNER JOIN score sc ON st.sid = sc.sid
-GROUP BY st.sid, st.sname
-HAVING MAX(sc.sscore) < 60
-ORDER BY st.sid;
+SELECT student.sid, student.sname
+FROM student
+INNER JOIN score
+           ON student.sid = score.sid
+GROUP BY student.sid, student.sname
+HAVING MAX(score.sscore) < 60;
 
 
 --30、查询没学过"孟扎扎"老师讲授的任一门课程的学生姓名
-SELECT st.sname
-FROM student st
-WHERE st.sid NOT IN (
-    SELECT DISTINCT sc.sid
-    FROM score sc
-    INNER JOIN course c  ON sc.scoure   = c.scoure
-    INNER JOIN teacher t ON c.cteacher  = t.cteacher
-    WHERE t.tname = '孟扎扎'
+SELECT student.sname
+FROM student
+WHERE student.sid NOT IN (
+    SELECT DISTINCT score.sid
+    FROM score
+    LEFT JOIN course  
+        ON score.scoure   = course.scoure
+    LEFT JOIN teacher 
+        ON course.cteacher  = teacher.cteacher
+    WHERE teacher.tname = '孟扎扎'
 )
-ORDER BY st.sname;
+ORDER BY student.sname;
+
+
+--也可以找到上过"孟扎扎"老师讲授课程的学生，然后用having count(distinct teacher.tname) = 0来过滤
+SELECT student.sname
+FROM student
+LEFT JOIN score
+           ON student.sid = score.sid
+LEFT JOIN course
+           ON score.scoure = course.scoure
+LEFT JOIN teacher
+           ON course.cteacher = teacher.cteacher AND teacher.tname = '孟扎扎'
+GROUP BY student.sid, student.sname
+HAVING COUNT(DISTINCT teacher.tname) = 0;
