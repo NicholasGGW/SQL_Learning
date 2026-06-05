@@ -1,0 +1,231 @@
+--1.怎么用关联实现环比
+
+SELECT T.*,LAG(T.AMT,1,0)OVER(ORDER BY T.YYYYMM) AS LAG_AMT,
+       ROUND(NVL((T.AMT-LAG(T.AMT,1,0)OVER(ORDER BY T.YYYYMM))/
+       LAG(T.AMT,1)OVER(ORDER BY T.YYYYMM)*100,0),2) AS HUANBI,
+       A.AMT,
+       (T.AMT-A.AMT)/A.AMT*100 AS MoM
+       --B.AMT
+FROM AMT623 T
+LEFT JOIN AMT623 A
+       ON SUBSTR(T.YYYYMM,-2) = SUBSTR(A.YYYYMM,-2)+1
+       AND SUBSTR(T.YYYYMM,1,4) = SUBSTR(A.YYYYMM,1,4)
+LEFT JOIN AMT623 B
+       ON SUBSTR(T.YYYYMM,1,4) = SUBSTR(B.YYYYMM,1,4)+1;
+       AND SUBSTR(T.YYYYMM,-2) = MAX(SUBSTR(B.YYYYMM,-2)) OVER(PARTITION BY SUBSTR(B.YYYYMM,1,4));
+
+--用ROWS BETWEEN，好像不太行
+SELECT YYYYMM,
+       AMT,
+       SUM(AMT) OVER(ORDER BY YYYYMM ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) - AMT AS LAST_MONTH_AMT
+       ROUND(
+           (AMT - (SUM(AMT) OVER(ORDER BY YYYYMM ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) - AMT)) 
+           / 
+           NVL(SUM(AMT) OVER(ORDER BY YYYYMM ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) - AMT, AMT) 
+           * 100
+       , 2) AS MoM
+FROM AMT623;
+
+--纯LEFT JOIN
+SELECT CURR_MONTH.YYYYMM AS CURRENT_MONTH,
+       CURR_MONTH.AMT AS CURRENT_MONTH_AMT,
+       PREV_MONTH.AMT AS PREV_MONTH_AMT,
+       ROUND( (CURR_MONTH.AMT - PREV_MONTH.AMT) / PREV_MONTH.AMT * 100, 2) AS MoM
+FROM 
+    (SELECT T1.YYYYMM, 
+            T1.AMT,
+            (SELECT COUNT(1) FROM AMT623 T2 WHERE T2.YYYYMM <= T1.YYYYMM) AS ROW_ID
+     FROM AMT623 T1) CURR_MONTH
+LEFT JOIN 
+    (SELECT T1.YYYYMM, 
+            T1.AMT,
+            (SELECT COUNT(1) FROM AMT623 T2 WHERE T2.YYYYMM <= T1.YYYYMM) AS ROW_ID
+     FROM AMT623 T1) PREV_MONTH
+ON CURR_MONTH.ROW_ID = PREV_MONTH.ROW_ID + 1
+ORDER BY CURR_MONTH.YYYYMM;
+
+--2.rows between和range between区别
+--见Sqls\20260603_Teaching.sql
+
+--3.开窗作业
+--数据准备
+CREATE TABLE STU_SCORE(
+    STU_ID NUMBER,   -- 学生ID
+    STU_NAME VARCHAR2(20),  -- 学生姓名
+    CLASS VARCHAR2(10),     -- 班级
+    SUBJECT VARCHAR2(20),   -- 科目
+    SCORE NUMBER            -- 分数
+);
+INSERT INTO STU_SCORE VALUES(1,'张三','一班','数学',95);
+INSERT INTO STU_SCORE VALUES(2,'李四','一班','数学',88);
+INSERT INTO STU_SCORE VALUES(3,'王五','二班','数学',92);
+INSERT INTO STU_SCORE VALUES(4,'赵六','二班','数学',85);
+INSERT INTO STU_SCORE VALUES(1,'张三','一班','语文',90);
+INSERT INTO STU_SCORE VALUES(2,'李四','一班','语文',92);
+INSERT INTO STU_SCORE VALUES(3,'王五','二班','语文',89);
+INSERT INTO STU_SCORE VALUES(4,'赵六','二班','语文',94);
+COMMIT;
+
+CREATE TABLE SALE_DATA(
+    SALE_DATE VARCHAR2(6),  -- 销售年月（格式：YYYYMM）
+    REGION VARCHAR2(20),    -- 销售区域
+    AMOUNT NUMBER           -- 销售额
+);
+INSERT INTO SALE_DATA VALUES('202401','华北',10000);
+INSERT INTO SALE_DATA VALUES('202401','华东',15000);
+INSERT INTO SALE_DATA VALUES('202402','华北',12000);
+INSERT INTO SALE_DATA VALUES('202402','华东',13000);
+INSERT INTO SALE_DATA VALUES('202403','华北',11000);
+INSERT INTO SALE_DATA VALUES('202403','华东',14000);
+COMMIT;
+
+--题目：
+--一、聚合开窗函数（1-4题，基础+进阶）
+--题1（基础-全局统计）
+--基于EMP表，查询员工工号、姓名、工资，同时展示全公司工资总和、平均工资（保留2位小数）、最高工资，无需分组。
+SELECT EMPNO,
+       ENAME,
+       SAL,
+       SUM(SAL) OVER() AS TOTAL_SAL,
+       ROUND(AVG(SAL) OVER(), 2) AS AVG_SAL,
+       MAX(SAL) OVER() AS MAX_SAL
+FROM EMP;
+
+
+--题2（基础-分区统计）
+--基于EMP表，查询员工工号、姓名、部门、工资，同时展示该员工所在部门的工资总和、最低工资，按部门升序、工资降序排序。
+SELECT EMPNO,
+       ENAME,
+       DEPTNO,
+       SAL,
+       SUM(SAL) OVER(PARTITION BY DEPTNO) AS DEPT_TOTAL_SAL,
+       MIN(SAL) OVER(PARTITION BY DEPTNO) AS DEPT_MIN_SAL
+FROM EMP
+ORDER BY DEPTNO ASC, SAL DESC;
+
+--题3（进阶-分组+开窗）
+--基于STU_SCORE表，统计每个班级每门科目的平均分，同时展示该科目全年级的平均分（保留2位小数），展示字段：班级、科目、班级科目平均分、年级科目平均分。
+SELECT CLASS,
+       SUBJECT,
+       AVG(SCORE) AS CLASS_AVG,
+       ROUND(AVG(AVG(SCORE)) OVER(PARTITION BY SUBJECT), 2) AS GRADE_AVG
+FROM STU_SCORE
+GROUP BY CLASS, SUBJECT;
+
+--优化, 上面直接求平均求的是班级平均，如果是年级的总人数的平均的话在每个班人数不一致的时候会有问题
+SELECT * FROM STU_SCORE;
+SELECT CLASS,
+       SUBJECT,
+       AVG(SCORE) AS CLASS_AVG,
+       ROUND(SUM(AVG(SCORE)) OVER(PARTITION BY SUBJECT) / COUNT(1) OVER(PARTITION BY SUBJECT) , 2) AS GRADE_AVG
+FROM STU_SCORE
+GROUP BY CLASS, SUBJECT;
+
+--题4（进阶-占比计算）
+--基于SALE_DATA表，查询每个区域每个月的销售额，同时展示该区域当月销售额占全国当月总销售额的比例（保留2位小数，带%），展示字段：销售年月、区域、销售额、占比。
+SELECT SALE_DATE,
+       REGION,
+       AMOUNT,
+       ROUND(RATIO_TO_REPORT(AMOUNT) OVER(PARTITION BY SALE_DATE) * 100, 2) || '%' AS RATIO
+FROM SALE_DATA;
+
+--二、排名函数（5-8题，ROW_NUMBER/RANK/DENSE_RANK，取TOP N）
+--
+--题5（基础-全局排名）
+--基于EMP表，按工资降序做全公司排名（用ROW_NUMBER），展示字段：员工姓名、工资、排名，排名列名设为SAL_RANK。
+SELECT ENAME,
+       SAL,
+       ROW_NUMBER() OVER(ORDER BY SAL DESC) AS SAL_RANK
+FROM EMP;
+
+
+--题6（基础-分区排名）
+--基于STU_SCORE表，按班级+科目分区，对学生分数降序排名（用ROW_NUMBER），展示字段：学生姓名、班级、科目、分数、排名，排名列名设为SCORE_RANK。
+SELECT STU_NAME,
+       CLASS,
+       SUBJECT,
+       SCORE,
+       ROW_NUMBER() OVER(PARTITION BY CLASS, SUBJECT ORDER BY SCORE DESC) AS SCORE_RANK
+FROM STU_SCORE;
+
+
+--题7（进阶-分区取TOP N）
+--基于EMP表，查询每个部门工资最高的2名员工，展示字段：部门编号、员工姓名、工资，若部门不足2人则全部显示。
+SELECT DEPTNO,
+       ENAME,
+       SAL
+FROM (
+    SELECT DEPTNO,
+           ENAME,
+           SAL,
+           ROW_NUMBER() OVER(PARTITION BY DEPTNO ORDER BY SAL DESC) AS RANK_NUM
+    FROM EMP
+) T1
+WHERE T1.RANK_NUM <= 2;
+
+
+--题8（进阶-关联表排名）
+--基于EMP+SALGRADE表，查询每个工资等级内工资最高的3名员工，展示字段：工资等级、员工姓名、工资，按工资等级升序、工资降序排序。
+SELECT GRADE,
+       ENAME,
+       SAL
+FROM (
+    SELECT SG.GRADE,
+           E.ENAME,
+           E.SAL,
+           ROW_NUMBER() OVER(PARTITION BY SG.GRADE ORDER BY E.SAL DESC) AS RANK_NUM
+    FROM EMP E
+    JOIN SALGRADE SG 
+            ON E.SAL BETWEEN SG.LOSAL AND SG.HISAL
+) T1
+WHERE T1.RANK_NUM <= 3
+ORDER BY GRADE, SAL DESC;
+
+--若有员工不在薪资范围内的
+--若有薪资等级没有员工的
+
+--三、偏移函数（LAG/LEAD）（9-10题，基础+进阶）
+--
+--题9（基础-单表偏移）
+--基于AMT623表（YYYYMM+AMT），查询每个年月的收入，同时展示上一个月的收入（无上月则显示0），展示字段：年月、当月收入、上月收入。
+SELECT YYYYMM,
+       AMT,
+       LAG(AMT, 1, 0) OVER(ORDER BY YYYYMM) AS LAST_MONTH_AMT
+FROM AMT623;
+
+--题10（进阶-分区偏移）
+--基于SALE_DATA表，按销售区域分区，查询每个区域每个月的销售额，同时展示该区域下一个月的销售额（无下月则显示0），展示字段：区域、销售年月、当月销售额、下月销售额。
+SELECT REGION,
+       SALE_DATE,
+       AMOUNT,
+       LAG(AMOUNT, 1, 0) OVER(PARTITION BY REGION ORDER BY SALE_DATE DESC) AS NEXT_MONTH_AMOUNT
+FROM SALE_DATA;
+
+
+SELECT REGION,
+       SALE_DATE,
+       AMOUNT,
+       LEAD(AMOUNT, 1, 0) OVER(PARTITION BY REGION ORDER BY SALE_DATE) AS NEXT_MONTH_AMOUNT
+FROM SALE_DATA;
+--四、ROWS BETWEEN自定义窗口（11-12题，累计/滑动窗口）
+--
+--题11（基础-累计统计）
+--基于AMT622表（YYYY+MM+AMT），按年份分区，统计每个月的收入截至当月的累计收入，展示字段：年份、月份、当月收入、累计收入，按年份升序、月份升序排序。
+SELECT YYYY,
+       MM,
+       AMT,
+       SUM(AMT) OVER(PARTITION BY YYYY ORDER BY MM) AS YEAR_ACCUMULATE_AMT
+FROM AMT622
+ORDER BY YYYY, MM;
+
+--题12（进阶-滑动窗口）
+--基于EMP表，按入职日期升序排序，查询每个员工的姓名、入职日期、工资，同时展示当前员工+前1名员工的工资平均值（保留2位小数），即窗口范围为「前1行到当前行」。
+SELECT ENAME,
+       HIREDATE,
+       SAL,
+       ROUND(AVG(SAL)OVER(ORDER BY HIREDATE ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), 2) AVG_SAL
+FROM EMP;
+ORDER BY HIREDATE;
+
+
+

@@ -1,0 +1,180 @@
+
+---练习
+CREATE TABLE SC_DISTRICT
+(
+  ID         NUMBER(10)                  NOT NULL,
+  PARENT_ID  NUMBER(10),
+  NAME       VARCHAR2(255 BYTE)          NOT NULL
+);
+
+INSERT INTO SC_DISTRICT VALUES(1,NULL,'四川省');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(2,1,'巴中市');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(3,1,'达州市'); 
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(4,2,'巴州区');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(5,2,'通江县');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(6,2,'平昌县');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(7,3,'通川区');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(8,3,'宣汉县');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(9,8,'塔河乡');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(10,8,'三河乡');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(11,8,'胡家镇');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(12,8,'南坝镇');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(13,6,'大寨乡');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(14,6,'响滩镇');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(15,6,'龙岗镇');
+INSERT INTO SC_DISTRICT(ID,PARENT_ID,NAME) VALUES(16,6,'白衣镇');
+COMMIT;
+
+SELECT * FROM SC_DISTRICT;
+
+
+--1. 找出 巴中市 的所有下属区域
+SELECT T.*
+       ,SYS_CONNECT_BY_PATH(T.ID,'=>')
+FROM SC_DISTRICT T
+START WITH T.NAME = '巴中市'
+--CONNECT BY PRIOR T.ID =  T.PARENT_ID;
+CONNECT BY T.PARENT_ID = PRIOR T.ID;
+
+--2. 找出 宣汉县 的所有上级（父级）区域
+SELECT T.*
+       ,SYS_CONNECT_BY_PATH(T.ID,'=>')
+FROM SC_DISTRICT T
+START WITH T.NAME = '宣汉县'
+--CONNECT BY T.ID = PRIOR T.PARENT_ID;
+CONNECT BY PRIOR T.PARENT_ID =  T.ID;
+
+
+---11点17分
+--练习1：对EMP表的部门编号做判断
+10部门 就返回 行政部
+20部门 就返回 工程部
+30部门 就返回 财务部
+默认值为 其他部门;
+SELECT T.EMPNO,T.ENAME,T.DEPTNO,
+       DECODE(T.DEPTNO,
+              '10', '行政部',
+              '20', '工程部',
+              '30', '财务部',
+              '其他部门') JOB_DEPT
+FROM EMP T;
+SELECT * FROM EMP
+ALTER TABLE EMP ADD (bonus NUMBER(10,2));
+UPDATE EMP 
+SET bonus = ROUND(DBMS_RANDOM.VALUE(1000, 5000), 2);
+COMMIT;
+ALTER TABLE EMP MODIFY ENAME VARCHAR2(50 CHAR);
+INSERT INTO emp (EMPNO, ENAME, JOB, HIREDATE, SAL, DEPTNO, BONUS) VALUES
+(7368, 'TEST_USER_1', 'CLERK', TO_DATE('2026-06-01', 'YYYY-MM-DD'), 2000, 10, 0);
+INSERT INTO emp (EMPNO, ENAME, JOB, HIREDATE, SAL, DEPTNO, BONUS) VALUES
+(8002, 'TEST_USER_2', 'SALESMAN', TO_DATE('2026-06-02', 'YYYY-MM-DD'), 2500, 20, NULL);
+INSERT INTO emp (EMPNO, ENAME, JOB, HIREDATE, SAL, DEPTNO, BONUS) VALUES
+(8003, 'TEST_USER_3', NULL, TO_DATE('2026-06-03', 'YYYY-MM-DD'), 0, 30, 500);
+INSERT INTO emp (EMPNO, ENAME, JOB, HIREDATE, SAL, DEPTNO, BONUS) VALUES
+(8004, 'TEST_USER_4', 'MANAGER', NULL, 3000, NULL, NULL);
+COMMIT;
+
+--练习2：在EMP表中如果员工奖金为空或0则增加1000奖金，
+--如果有奖金则加500。
+SELECT T.EMPNO,T.ENAME,T.BONUS,
+       DECODE(T.BONUS,
+              0, 1000,
+              NULL, 1000,
+              T.BONUS+500) NEW_BONUS 
+FROM EMP T;
+
+--练习3：因为公司对于每个岗位（EMP表）都有工资支出预算，
+--请按以下指定的各个岗位的预算，查询当前每个岗位超出了多少预算？
+岗位           成本预算   
+CLERK            5000  
+SALESMAN         6000
+PRESIDENT        5000
+MANAGER          8000
+ANALYST          5500
+
+
+SELECT T.JOB,SUM(T.SAL),
+       DECODE(T.JOB,
+              'CLERK', SUM(T.SAL)-5000,
+              'SALESMAN', SUM(T.SAL)-6000,
+              'PRESIDENT', SUM(T.SAL)-5000,
+              'MANAGER', SUM(T.SAL)-8000,
+              'ANALYST', SUM(T.SAL)-5500,
+              0) BEYOND_BUDGET 
+FROM EMP T
+GROUP BY T.JOB;
+
+
+
+SELECT T.JOB,SUM(T.SAL),
+       SUM(T.SAL) - DECODE(T.JOB,
+              'CLERK', 5000,
+              'SALESMAN', 6000,
+              'PRESIDENT', 5000,
+              'MANAGER', 8000,
+              'ANALYST', 5500,
+              0) BEYOND_BUDGET 
+FROM EMP T
+GROUP BY T.JOB;
+
+
+----练习1：对EMP表中的员工月薪（工资+奖金）进行判断评级，
+--如果月薪低于1000，返回'低'
+--如果月薪在1000到3000之间，返回'中'
+--如果月薪在3000以上，返回'高'
+
+
+----练习2：对EMP表中的员工工作年限（距离现今过去了多少年）进行判断
+--如果工作年限超过了40年，每过1年奖励500
+--如果工作年限在40年以下（包含40年），奖励200
+--请查询各个员工应该奖励多少钱？
+--MONTHS_BETWEEN计算工作年限
+
+
+
+---15点22分
+-- 1. 添加 MGR 字段
+ALTER TABLE emp ADD (mgr NUMBER(4));
+
+-- 2. 根据你之前的数据，更新每位员工的上级编号
+UPDATE emp SET mgr = 7902 WHERE empno = 7369; -- SMITH 的上级是 FORD
+UPDATE emp SET mgr = 7698 WHERE empno = 7499; -- ALLEN 的上级是 BLAKE
+UPDATE emp SET mgr = 7698 WHERE empno = 7521; -- WARD 的上级是 BLAKE
+UPDATE emp SET mgr = 7839 WHERE empno = 7566; -- JONES 的上级是 KING
+UPDATE emp SET mgr = 7698 WHERE empno = 7654; -- MARTIN 的上级是 BLAKE
+UPDATE emp SET mgr = 7839 WHERE empno = 7698; -- BLAKE 的上级是 KING
+UPDATE emp SET mgr = 7839 WHERE empno = 7782; -- CLARK 的上级是 KING
+UPDATE emp SET mgr = 7566 WHERE empno = 7788; -- SCOTT 的上级是 JONES
+-- KING (7839) 是最高领导，没有上级，保持 NULL
+UPDATE emp SET mgr = 7698 WHERE empno = 7844; -- TURNER 的上级是 BLAKE
+UPDATE emp SET mgr = 7788 WHERE empno = 7876; -- ADAMS 的上级是 SCOTT
+UPDATE emp SET mgr = 7698 WHERE empno = 7900; -- JAMES 的上级是 BLAKE
+UPDATE emp SET mgr = 7566 WHERE empno = 7902; -- FORD 的上级是 JONES
+UPDATE emp SET mgr = 7782 WHERE empno = 7934; -- MILLER 的上级是 CLARK
+
+-- 3. 别忘了提交事务
+COMMIT;
+
+
+-- 1. 创建 DEPT 表
+CREATE TABLE dept (
+    deptno NUMBER(2) CONSTRAINT pk_dept PRIMARY KEY,
+    dname  VARCHAR2(14),
+    loc    VARCHAR2(13)
+);
+
+-- 2. 插入经典的四个部门数据
+INSERT INTO dept (deptno, dname, loc) VALUES (10, 'ACCOUNTING', 'NEW YORK');
+INSERT INTO dept (deptno, dname, loc) VALUES (20, 'RESEARCH', 'DALLAS');
+INSERT INTO dept (deptno, dname, loc) VALUES (30, 'SALES', 'CHICAGO');
+INSERT INTO dept (deptno, dname, loc) VALUES (40, 'OPERATIONS', 'BOSTON');
+
+-- 3. 提交事务
+COMMIT;
+
+
+SELECT T1.EMPNO, T1.ENAME, T1.SAL, T1.DEPTNO, T2.DNAME, T2.LOC
+FROM EMP T1
+LEFT JOIN DEPT T2
+		ON T1.DEPTNO = T2.DEPTNO
+ORDER BY T1.DEPTNO, T1.SAL DESC;
