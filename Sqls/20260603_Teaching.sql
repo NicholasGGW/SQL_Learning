@@ -217,3 +217,41 @@ SELECT T.ENAME,
        T.SAL,
        AVG(T.SAL)OVER(ORDER BY T.SAL RANGE BETWEEN 100 PRECEDING AND CURRENT ROW) SUMSAL
 FROM EMP T;
+
+
+
+--1321
+
+--错误的思路，意图通过LEAD先找到第七天，然后下面的窗口不能套窗口，而如果不套窗口就会从原第一行开始算，会感觉不符合要求
+SELECT --C.visited_on,--
+        TO_CHAR(LEAD(visited_on, 6) OVER(ORDER BY visited_on), 'YYYY-MM-DD') AS visited_on,
+        SUM(SUM(amount)) 
+        OVER(ORDER BY (LEAD(visited_on, 6) OVER(ORDER BY visited_on)) RANGE BETWEEN 7 PRECEDING AND CURRENT ROW) AS amount,
+        AVG(AVG(amount)) OVER(ORDER BY (LEAD(visited_on, 6) OVER(ORDER BY visited_on)) RANGE BETWEEN 7 PRECEDING AND CURRENT ROW) AS average_amount
+FROM Customer C
+GROUP BY visited_on
+ORDER BY visited_on 
+
+
+--正确思路，直接开算，后续把前六条干掉
+
+SELECT C.visited_on,--
+        --TO_CHAR(LEAD(visited_on, 6) OVER(ORDER BY visited_on), 'YYYY-MM-DD') AS visited_on,
+        SUM(SUM(amount)) OVER(ORDER BY visited_on RANGE BETWEEN 6 PRECEDING AND CURRENT ROW) AS amount,
+        ROUND(AVG(AVG(amount)) OVER(ORDER BY visited_on RANGE BETWEEN 6 PRECEDING AND CURRENT ROW), 2) AS average_amount,
+
+FROM Customer C
+WHERE visited_on >= (SELECT MIN(visit_new) FROM (SELECT LEAD(visited_on, 6) OVER(ORDER BY visited_on) AS visit_new FROM Customer))
+GROUP BY visited_on
+ORDER BY visited_on 
+
+--答案
+SELECT TO_CHAR(visited_on, 'YYYY-MM-DD') AS visited_on, amount, average_amount
+FROM (SELECT C.visited_on,--
+        SUM(SUM(amount)) OVER(ORDER BY visited_on RANGE BETWEEN 6 PRECEDING AND CURRENT ROW) AS amount,
+        ROUND(AVG(SUM(amount)) OVER(ORDER BY visited_on RANGE BETWEEN 6 PRECEDING AND CURRENT ROW), 2) AS average_amount
+
+FROM Customer C
+GROUP BY visited_on
+ORDER BY visited_on) T2 
+WHERE visited_on >= (SELECT MIN(visit_new) FROM (SELECT LEAD(visited_on, 6) OVER(ORDER BY visited_on) AS visit_new FROM Customer GROUP BY visited_on))
