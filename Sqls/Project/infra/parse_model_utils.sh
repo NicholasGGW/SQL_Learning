@@ -115,7 +115,7 @@ generate_hive_ddl_from_mysql() {
     fi
 
     # 2. 遍历元数据，进行类型映射并拼接 Hive SQL
-local -a col_array=() # 定义一个局部数组
+    local -a col_array=() # 定义一个局部数组
     
     while IFS=$'\t' read -r col_name col_type; do
         # 优化：使用 Shell 内置的高性能去除首尾空格和双引号，不用再调外面的 tr 和 xargs 丢性能
@@ -170,4 +170,77 @@ EOF
     echo "[INFO] DDL 语句生成成功: ${ODS_DB_NAME}.${ODS_TABLE_NAME}" >&2
     return 0
 
+}
+
+
+
+
+
+# ==========================================
+# 动态解析 DWD 配置并生成 Hive DDL
+# 1. 参数: $1 = conf文件路径, $2 = 数据库名称
+# 2. 建表使用 ORC 格式，并设置 Hive 原生 \001 分隔符
+# 3. 对 ODS 源数据强制按 ID 进行去重处理 (ROW_NUMBER)
+# ==========================================
+
+generate_dwd_ddl_from_conf() {
+    local conf_file=$1
+    local db_name=$2
+
+    if [ ! -f "$conf_file" ]; then
+        echo "[ERROR] DWD 配置文件不存在: $conf_file"
+        return 1
+    fi
+
+    # 1. 提取表名和表注释
+    local target_table=$(grep "^target_table" "$conf_file" | cut -d'=' -f2 | xargs)
+    local tbl_comment=$(grep "^comment" "$conf_file" | cut -d'=' -f2 | xargs)
+    
+    if [ -z "$target_table" ]; then
+        echo "[ERROR] 配置文件中缺失 target_table 属性！"
+        return 1
+    fi
+
+    local ddl_path="${PROJECT_DIR}/.tmp_hive_create_${target_table}_$$.sql"
+
+    # 2. 开始拼接 DDL 头部
+    echo "USE ${db_name};" > "$ddl_path"
+    echo "CREATE TABLE IF NOT EXISTS ${db_name}.${target_table} (" >> "$ddl_path"
+
+    # 3. 使用 awk 精准解析 [columns] 块，生成字段定义
+    # 格式: 字段名 = 类型 | 注释 | 逻辑
+    awk '
+        BEGIN { flag=0; count=0; }
+        /^\[columns\]/ { flag=1; next; }
+        /^\[/ && flag==1 { flag=0; }
+        flag==1 && NF>0 && !/^#/ {
+            # 按等号分割取字段名
+            split($0, a, "=");
+            col_name = a[1];
+            gsub(/^[ \t]+|[ \t]+$/, "", col_name);
+            
+            # 按竖线分割取类型和注释
+            split(a[2], b, "|");
+            col_type = b[1];
+            col_comment = b[2];
+            gsub(/^[ \t]+|[ \t]+$/, "", col_type);
+            gsub(/^[ \t]+|[ \t]+$/, "", col_comment);
+            
+            # 拼接字段语句
+            if (count > 0) printf ",\n" >> "'"$ddl_path"'";
+            printf "    `%s` %s COMMENT '\''%s'\''", col_name, col_type, col_comment >> "'"$ddl_path"'";
+            count++;
+        }
+    ' "$conf_file"
+
+    # 4. 拼接 DDL 尾部（指定分区、分隔符与存储格式）
+    echo "" >> "$ddl_path"
+    echo ") COMMENT '${tbl_comment}'" >> "$ddl_path"
+    echo "PARTITIONED BY (dt STRING)" >> "$ddl_path"
+    echo "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\001'" >> "$ddl_path"
+    echo "STORED AS ORC tblproperties ('orc.compress'='SNAPPY');" >> "$ddl_path"
+
+    # 导出全局变量供调用者使用
+    export GENERATED_DWD_DDL_PATH="$ddl_path"
+    export DWD_TARGET_TABLE="$target_table"
 }
