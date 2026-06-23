@@ -1,7 +1,6 @@
 #!/bin/bash
 
-GENERATED_HIVE_DDL=""
-# 函数: parse_table_config
+# 函数: parse_upstream_config、parse_ods_config
 # 作用: 解析指定的 .conf 配置文件，提取配置项并导出为全局环境变量
 # 参数: $1 = 配置文件的绝对路径
 

@@ -2,13 +2,15 @@
 ###
 # 此脚本用作ETL流程的E模块，负责将上游的mysql的mall数据库内容抽取转化至hdfs，并可以通过hive进行读取编辑，用作OLAP系统的ods层
 
-# 1.支持输入-all参数进行全量同步
-# 2.默认增量更新，使用-force参数用于全量更新
+# 1.支持输入日期参数进行写入到对应的前一天的分区
+# 2.默认覆盖更新对应的分区，是否需要后续设计增量更新？
 # 3.
 
 
 #基础逻辑
 #需要判断原、目标连接库和表是否存在，然后执行对应命令
+#若目标表不存在，需要创建，通过原表的字段自动读取并转换为目标表的字段和类型
+
 ###
 
 
@@ -104,8 +106,6 @@ process_single_table() {
         if [[ "$CREATE_CONFIRM" == "y" || "$CREATE_CONFIRM" == "Y" ]]; then
             echo "[INFO] 正在实时获取 MySQL 元数据并生成 Hive DDL..."
             #虽然source了调用的子脚本，但是它的全局变量的改动总是传不过来
-            # 1. 创建一个安全的临时文件
-            #TEMP_SQL_FILE=$(mktemp /tmp/hive_ddl_XXXXXX.sql)
             # 调用动态建表函数，不能用()包起来！()是子进程，全局变量的改动无法体现
             generate_hive_ddl_from_mysql \
                 "$UP_TABLE_NAME" "$ODS_DB_NAME" "$ODS_TABLE_NAME"
@@ -113,29 +113,15 @@ process_single_table() {
                 echo "[ERROR] 生成 Hive DDL 失败，终止执行。"
                 return 1
             fi
-            #直接使用全局变量 GENERATED_HIVE_DDL
-            # echo "========================================="
-            # echo "[INFO] 生成的建表语句："
-            # echo -e "$GENERATED_HIVE_DDL"
-            # echo "========================================="
-            #local create_sql
-            #create_sql=$GENERATED_HIVE_DDL
             
-            #if [ -z "$create_sql" ]; then
-            #    echo "[ERROR] 生成 Hive DDL 失败，跳过该表。"
-            #    return 1
-            #fi
             echo "[INFO] 生成的临时 SQL 文件路径: ${GENERATED_SQL_PATH}"
             cat "$GENERATED_SQL_PATH"
-            #printf "[INFO] 生成的建表语句：\n$create_sql\n"
+
             read -p "[INPUT] 确认建表语句(y/n): " CREATE_CONFIRM
             if [[ "$CREATE_CONFIRM" == "y" || "$CREATE_CONFIRM" == "Y" ]]; then
                 echo "[INFO] 正在执行 Hive 建表..."
                 
                 # 执行建表
-                # hive -e "$create_sql" || { echo "[ERROR] Hive 建表执行失败！"; return 1; }
-                # 执行建表：用 echo 把变量推给 hive 的标准输入，记得带上双引号
-                # echo "${create_sql}" | hive || { echo "[ERROR] Hive 建表执行失败！"; return 1; }
                 hive -f "${GENERATED_SQL_PATH}"
                 HIVE_STATUS=$?
                 #顺手删临时文件
