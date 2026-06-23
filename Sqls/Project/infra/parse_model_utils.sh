@@ -236,9 +236,10 @@ generate_dwd_ddl_from_conf() {
     # 4. 拼接 DDL 尾部（指定分区、分隔符与存储格式）
     echo "" >> "$ddl_path"
     echo ") COMMENT '${tbl_comment}'" >> "$ddl_path"
-    echo "PARTITIONED BY (dt STRING)" >> "$ddl_path"
-    echo "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\001'" >> "$ddl_path"
-    echo "STORED AS ORC tblproperties ('orc.compress'='SNAPPY');" >> "$ddl_path"
+    echo "PARTITIONED BY (${PARTITION_COL} ${PARTITION_COL_TYPE})" >> "$ddl_path"
+    #echo "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\001'" >> "$ddl_path"
+    echo "STORED AS ORC;" >> "$ddl_path"
+    #echo "STORED AS ORC tblproperties ('orc.compress'='SNAPPY');" >> "$ddl_path"
 
     # 导出全局变量供调用者使用
     export GENERATED_DWD_DDL_PATH="$ddl_path"

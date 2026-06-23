@@ -95,8 +95,9 @@
 
 ### 1. 维度表（DIM）
 * `dim_sku_info`: 商品维度宽表，打平了一、二、三级类目名称。
-* `dim_user_info`: 用户维度表，剔除密码敏感字段，对手机号进行脱敏处理。
+* `dim_user_info`: 用户维度表，剔除密码敏感字段(passwd, head_img)，对手机号进行脱敏处理。
 
 ### 2. 事实表（FACT）
-* `dwd_fact_order_detail`: 订单明细事实表，以明细粒度为准，退化了订单主表的公共信息（用户ID、订单状态等）。
+* `dwd_fact_order_detail`: 订单明细事实表，继承ods_order_detail。
+* `dwd_fact_order_info`: 订单主表，继承ods_order_info。
 * `dwd_fact_payment_info`: 支付明细事实表，对订单ID和用户ID进行了类型规范化（转为BIGINT）。

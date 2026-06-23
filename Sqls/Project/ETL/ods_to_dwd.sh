@@ -38,31 +38,64 @@ FAIL_COUNT=0
 process_dwd_table() {
     local conf_file=$1
     echo "------------------------------------------"
-    echo "[INFO] 开始处理 DWD 模型: $(basename "$conf_file")"
+    echo "[INFO] 开始处理 DWD 模型配置: $(basename "$conf_file")"
 
-    #校验上游 ods 表是否存在，确认是否建表
-    echo "[INFO] 检查 Hive 表 [${ODS_DB_NAME}.${ODS_TABLE_NAME}] 是否存在..."
-    # 假设 check_hive_table 函数返回 0 表示存在，1 表示不存在
-    if ! check_hive_table "$ODS_DB_NAME" "$ODS_TABLE_NAME"; then
-        
-        echo "[WARN] 下游 Hive 表不存在！"
-        read -p "[INPUT] 是否立即根据上游元数据自动创建该表？(y/n): " CREATE_CONFIRM
-        
-        if [[ "$CREATE_CONFIRM" == "y" || "$CREATE_CONFIRM" == "Y" ]]; then
-            echo "[INFO] 正在实时获取 MySQL 元数据并生成 Hive DDL..."
-    # 3.1 动态生成并执行 DDL
-    generate_dwd_ddl_from_conf "$conf_file" "$DWD_DB" || return 1
-    echo "[INFO] 执行自动建表 DDL: $DWD_TARGET_TABLE"
-    hive -f "$GENERATED_DWD_DDL_PATH"
-    if [ $? -ne 0 ]; then
-        echo "[ERROR] 表 $DWD_TARGET_TABLE 创建失败！"
-        rm -f "$GENERATED_DWD_DDL_PATH"
+    # 解析目标表名
+    local target_table=$(grep "^target_table" "$conf_file" | cut -d'=' -f2 | xargs)
+    if [ -z "$target_table" ]; then
+        echo "[ERROR] 无法从配置文件解析出 target_table！"
         return 1
     fi
-    rm -f "$GENERATED_DWD_DDL_PATH"
 
-    # 3.2 匹配并执行 DML 模板
-    local sql_file="${SQL_TEMPLATE_DIR}/${DWD_TARGET_TABLE}.sql"
+    # 3.1 提取并校验依赖的上游 ODS 表是否存在
+    echo "[INFO] 正在校验 ${target_table} 的上游 ODS 依赖..."
+    # 使用正则从 conf 文件中抓取所有 ods_ 开头的表名并去重
+    local dependent_ods_tables=$(grep -oE "ods_[a-zA-Z0-9_]+" "$conf_file" | sort | uniq)
+    for ods_tbl in $dependent_ods_tables; do
+        if ! check_hive_table "$DWD_DB" "$ods_tbl"; then
+            echo "[ERROR] 严重阻断: 缺失依赖的上游表 ${DWD_DB}.${ods_tbl}，终止处理 $target_table！"
+            return 1
+        fi
+    done
+    echo "[INFO] 上游依赖校验全部通过。"
+
+    # 3.2 校验下游 DWD 表是否存在以决定是否跳过 DDL
+    if check_hive_table "$DWD_DB" "$target_table"; then
+        echo "[INFO] 下游目标表 ${DWD_DB}.${target_table} 已存在，跳过自动建表阶段。"
+    else
+        
+        read -p "[INPUT] 下游目标表不存在，是否创建该表？(y/n): " CREATE_CONFIRM
+        
+        if [[ "$CREATE_CONFIRM" == "y" || "$CREATE_CONFIRM" == "Y" ]]; then
+            echo "[INFO] 下游目标表不存在，开始动态生成并执行 DDL..."
+            generate_dwd_ddl_from_conf "$conf_file" "$DWD_DB" || return 1
+
+            echo "[INFO] 生成的临时 SQL 文件路径: ${GENERATED_DWD_DDL_PATH}"
+            cat "$GENERATED_DWD_DDL_PATH"
+
+            read -p "[INPUT] 确认建表语句(y/n): " CREATE_CONFIRM
+            if [[ "$CREATE_CONFIRM" == "y" || "$CREATE_CONFIRM" == "Y" ]]; then
+                hive -f "$GENERATED_DWD_DDL_PATH"
+                if [ $? -ne 0 ]; then
+                    echo "[ERROR] 表 $target_table 创建失败！"
+                    rm -f "$GENERATED_DWD_DDL_PATH"
+                    return 1
+                fi
+                rm -f "$GENERATED_DWD_DDL_PATH"
+            else
+                echo "[WARN] 用户不认可建表语句。"
+            fi
+        else
+            echo "[WARN] 用户拒绝创建表，跳过当前表的处理。"
+            return 1
+        fi
+
+
+
+    fi
+
+    # 3.3 匹配并执行 DML 模板
+    local sql_file="${SQL_TEMPLATE_DIR}/${target_table}.sql"
     if [ ! -f "$sql_file" ]; then
         echo "[ERROR] 未找到对应的 SQL 模板文件: $sql_file"
         return 1
@@ -73,10 +106,10 @@ process_dwd_table() {
     hive -hiveconf app_db="$DWD_DB" -hiveconf do_date="$DO_DATE" -f "$sql_file"
     
     if [ $? -ne 0 ]; then
-        echo "[ERROR] DML 装载失败: $DWD_TARGET_TABLE"
+        echo "[ERROR] DML 装载失败: $target_table"
         return 1
     fi
-    echo "[SUCCESS] 表 $DWD_TARGET_TABLE 处理完成！"
+    echo "[SUCCESS] 表 $target_table 处理完成！"
 }
 
 # 4. 主流程编排
