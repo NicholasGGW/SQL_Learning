@@ -183,12 +183,12 @@ EOF
 # 3. 对 ODS 源数据强制按 ID 进行去重处理 (ROW_NUMBER)
 # ==========================================
 
-generate_dwd_ddl_from_conf() {
+generate_ddl_from_conf() {
     local conf_file=$1
     local db_name=$2
 
     if [ ! -f "$conf_file" ]; then
-        echo "[ERROR] DWD 配置文件不存在: $conf_file"
+        echo "[ERROR] 数据表配置文件不存在: $conf_file"
         return 1
     fi
 
@@ -242,6 +242,6 @@ generate_dwd_ddl_from_conf() {
     #echo "STORED AS ORC tblproperties ('orc.compress'='SNAPPY');" >> "$ddl_path"
 
     # 导出全局变量供调用者使用
-    export GENERATED_DWD_DDL_PATH="$ddl_path"
-    export DWD_TARGET_TABLE="$target_table"
+    export GENERATED_DDL_PATH="$ddl_path"
+    export CREATE_TARGET_TABLE="$target_table"
 }

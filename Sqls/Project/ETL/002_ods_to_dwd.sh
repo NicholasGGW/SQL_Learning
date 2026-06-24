@@ -8,6 +8,10 @@
 # 3. 寻找 ETL/sql/dwd/ 下同名的 .sql 模板，注入环境变量并执行数据装载
 ###
 
+###
+# 有个问题，不知道为什么总共5张目标表，失败和成功的加起来往往是6张
+###
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR=$(realpath "$SCRIPT_DIR/../")
 
@@ -68,20 +72,20 @@ process_dwd_table() {
         
         if [[ "$CREATE_CONFIRM" == "y" || "$CREATE_CONFIRM" == "Y" ]]; then
             echo "[INFO] 下游目标表不存在，开始动态生成并执行 DDL..."
-            generate_dwd_ddl_from_conf "$conf_file" "$DWD_DB" || return 1
+            generate_ddl_from_conf "$conf_file" "$DWD_DB" || return 1
 
-            echo "[INFO] 生成的临时 SQL 文件路径: ${GENERATED_DWD_DDL_PATH}"
-            cat "$GENERATED_DWD_DDL_PATH"
+            echo "[INFO] 生成的临时 SQL 文件路径: ${GENERATED_DDL_PATH}"
+            cat "$GENERATED_DDL_PATH"
 
             read -p "[INPUT] 确认建表语句(y/n): " CREATE_CONFIRM
             if [[ "$CREATE_CONFIRM" == "y" || "$CREATE_CONFIRM" == "Y" ]]; then
-                hive -f "$GENERATED_DWD_DDL_PATH"
+                hive -f "$GENERATED_DDL_PATH"
                 if [ $? -ne 0 ]; then
                     echo "[ERROR] 表 $target_table 创建失败！"
-                    rm -f "$GENERATED_DWD_DDL_PATH"
+                    rm -f "$GENERATED_DDL_PATH"
                     return 1
                 fi
-                rm -f "$GENERATED_DWD_DDL_PATH"
+                rm -f "$GENERATED_DDL_PATH"
             else
                 echo "[WARN] 用户不认可建表语句。"
             fi
@@ -114,7 +118,6 @@ process_dwd_table() {
 
 # 4. 主流程编排
 echo "[INFO] 开始扫描并处理 DWD 层模型配置..."
-# 遍历 dim 和 fact 目录下的配置
 for conf_file in $(find "$DWD_CONF_DIR" -name "*.conf"); do
     process_dwd_table "$conf_file"
     [ $? -eq 0 ] && ((SUCCESS_COUNT++)) || ((FAIL_COUNT++))
