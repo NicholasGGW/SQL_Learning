@@ -17,8 +17,8 @@ SELECT
     u.user_level,
     u.birthday,
     (CASE WHEN u.gender='M' THEN '男' ELSE '女' END),
-    u.create_time
-
+    u.create_time,
+    current_timestamp() AS etl_time
 FROM (
     -- 订单主表去重
     SELECT *, ROW_NUMBER() OVER(PARTITION BY id ORDER BY id) as rn 

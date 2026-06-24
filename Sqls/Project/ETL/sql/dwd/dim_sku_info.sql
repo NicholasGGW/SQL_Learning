@@ -25,7 +25,8 @@ SELECT
     c3.category2_id, 
     c2.name, 
     c2.category1_id, 
-    c1.name
+    c1.name,
+    current_timestamp() AS etl_time
 FROM (
     -- ODS 源表去重获取最新快照
     SELECT *, ROW_NUMBER() OVER(PARTITION BY id ORDER BY create_time DESC) as rn 

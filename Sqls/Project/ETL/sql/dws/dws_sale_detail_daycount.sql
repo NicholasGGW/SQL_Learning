@@ -43,7 +43,8 @@ SELECT
     s.spu_id,
     dod.sku_num,
     dod.order_count,
-    CAST(dod.order_amount AS DECIMAL(16,2)) AS order_amount
+    CAST(dod.order_amount AS DECIMAL(16,2)) AS order_amount,
+    current_timestamp() AS etl_time
 FROM daily_order_detail dod
 LEFT JOIN ${hiveconf:app_db}.dim_user_info u 
   ON dod.user_id = u.id AND u.dt = '${hiveconf:do_date}'

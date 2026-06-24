@@ -33,7 +33,8 @@ SELECT
     NVL(o.order_count, 0) AS order_count,
     CAST(NVL(o.order_amount, 0.00) AS DECIMAL(16,2)) AS order_amount,
     NVL(p.payment_count, 0) AS payment_count,
-    CAST(NVL(p.payment_amount, 0.00) AS DECIMAL(16,2)) AS payment_amount
+    CAST(NVL(p.payment_amount, 0.00) AS DECIMAL(16,2)) AS payment_amount,
+    current_timestamp() AS etl_time
 FROM ${hiveconf:app_db}.dim_user_info u
 FULL JOIN ${hiveconf:app_db}.dim_date ON 1=1
 LEFT JOIN order_agg o ON 

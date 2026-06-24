@@ -24,7 +24,8 @@ SELECT
     oi.expire_time, 
     oi.tracking_no, 
     oi.parent_order_id, 
-    oi.img_url
+    oi.img_url,
+    current_timestamp() AS etl_time
 FROM (
     -- 订单主表去重
     SELECT *, ROW_NUMBER() OVER(PARTITION BY id ORDER BY id) as rn 

@@ -23,14 +23,22 @@ payment_amount = DESIMAL | dwd_payment_info.total_amount
 什么商品类型最容易被取消支付
 
 
-用户购买商品明细表
+用户购买商品明细表(dws_sale_detail_daycount)
 user_id
 create_time
 sku_id
 
 userage 使用月份差 birthday 
+分析每个用户每天对于一个商品（sku_id），下单明细（数量、订单个数【分散在几个订单】、当天花了多少钱在这个商品上）
+有个之前没考虑到的，用户和签收人不是同一个人
 
+```
+select * FROM mall2.dwd_fact_order_info dwd_oi 
+WHERE dwd_oi.user_id = 1 AND TO_DATE(create_time) = '2025-01-02'; 
+select * FROM mall2.dwd_fact_order_detail dwd_od WHERE dwd_od.order_id IN (859,1324,5339);
 
+user1在2025-01-02有三个订单，这三个订单中有重复的sku_id=411，单价132.30，分别在两个订单各买了3个，在最终dws_sale_detail_daycount内，体现sku_num为6，order_amount为793.80
+```
 
 ## 一、 ODS 层（贴源层）表结构信息补全
 根据 Sqoop 导入日志及 MySQL 元数据映射，Hive 中的 ODS 层表结构定义如下（包含按天分区字段 `dt`）。注意金额和重量等数值字段在 Sqoop 自动建表时被转换为 `DOUBLE` 类型，时间被转为 `TIMESTAMP`。

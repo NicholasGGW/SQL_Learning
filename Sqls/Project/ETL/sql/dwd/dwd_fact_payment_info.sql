@@ -16,7 +16,8 @@ SELECT
     pi.total_amount,
     pi.subject,
     pi.payment_type,
-    pi.payment_time
+    pi.payment_time,
+    current_timestamp() AS etl_time
 FROM (
     -- 去重
     SELECT *, ROW_NUMBER() OVER(PARTITION BY id ORDER BY id) as rn 

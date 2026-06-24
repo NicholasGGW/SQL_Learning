@@ -14,7 +14,8 @@ SELECT
     od.sku_name,
     od.img_url,
     CAST(od.order_price AS DECIMAL(16,2)), 
-    CAST(od.sku_num AS BIGINT)
+    CAST(od.sku_num AS BIGINT),
+    current_timestamp() AS etl_time
 FROM (
     -- 订单明细表去重
     SELECT *, ROW_NUMBER() OVER(PARTITION BY id ORDER BY id) as rn 
