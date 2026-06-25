@@ -29,7 +29,7 @@ SELECT
     dod.order_date,
     dod.sku_id,
     u.gender AS user_gender,
-    CAST(ROUND(ROUND(MONTHS_BETWEEN('${do_date}', birthday),0) / 12, 2) AS STRING) AS user_age,
+    CAST(ROUND(ROUND(MONTHS_BETWEEN('${hiveconf:do_date}', birthday),0) / 12, 2) AS STRING) AS user_age,
     u.user_level,
     s.price AS sku_price,
     s.sku_name,

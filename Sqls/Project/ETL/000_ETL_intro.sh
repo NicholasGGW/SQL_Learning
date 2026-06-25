@@ -27,6 +27,7 @@ source ~/.bash_profile
 to_ods_script="$SCRIPT_DIR/001_extract_mall_to_ods.sh"
 to_dwd_script="$SCRIPT_DIR/002_ods_to_dwd.sh"
 to_dws_script="$SCRIPT_DIR/003_dwd_to_dws.sh"
+to_dws_script="$SCRIPT_DIR/004_dws_to_ads.sh"
 
 script_files=($to_ods_script $to_dwd_script $to_dws_script)
 
