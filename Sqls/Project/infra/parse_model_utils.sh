@@ -173,16 +173,12 @@ EOF
 }
 
 
-
-
-
 # ==========================================
-# 动态解析 DWD 配置并生成 Hive DDL
-# 1. 参数: $1 = conf文件路径, $2 = 数据库名称
-# 2. 建表使用 ORC 格式，并设置 Hive 原生 \001 分隔符
-# 3. 对 ODS 源数据强制按 ID 进行去重处理 (ROW_NUMBER)
+# 核心重构：支持 DWD -> DWS -> ADS 通用动态配置化建表
+# 1. 自动读取并解析 [table_info] 下的 file_format 和 field_delim 属性
+# 2. 默认智能策略：若目标表为 ads_ 开头，默认配置为 TEXTFILE 且以 \t 分隔；
+#    其他内部核心表默认配置为 ORC，并带有 Snappy 高效压缩与 \001 分隔符。
 # ==========================================
-
 generate_ddl_from_conf() {
     local conf_file=$1
     local db_name=$2
@@ -201,14 +197,34 @@ generate_ddl_from_conf() {
         return 1
     fi
 
+    # 2. 提取可选存储格式与分隔符配置（支持缺省）
+    local file_format=$(grep "^file_format" "$conf_file" | cut -d'=' -f2 | xargs)
+    local field_delim=$(grep "^field_delim" "$conf_file" | cut -d'=' -f2 | xargs)
+
+    # 3. 智能默认策略：若无自定义配置，ADS 默认 TEXTFILE + \t，DWD/DWS 默认 ORC + \001
+    if [ -z "$file_format" ]; then
+        if [[ "$target_table" =~ ^ads_ ]]; then
+            file_format="TEXTFILE"
+        else
+            file_format="ORC"
+        fi
+    fi
+
+    if [ -z "$field_delim" ]; then
+        if [[ "$target_table" =~ ^ads_ ]]; then
+            field_delim="\t"
+        else
+            field_delim="\001"
+        fi
+    fi
+
     local ddl_path="${PROJECT_DIR}/.tmp_hive_create_${target_table}_$$.sql"
 
-    # 2. 开始拼接 DDL 头部
+    # 4. 开始拼接 DDL 头部
     echo "USE ${db_name};" > "$ddl_path"
     echo "CREATE TABLE IF NOT EXISTS ${db_name}.${target_table} (" >> "$ddl_path"
 
-    # 3. 使用 awk 精准解析 [columns] 块，生成字段定义
-    # 格式: 字段名 = 类型 | 注释 | 逻辑
+    # 5. 使用 awk 精准解析 [columns] 块，生成字段定义
     awk '
         BEGIN { flag=0; count=0; }
         /^\[columns\]/ { flag=1; next; }
@@ -228,18 +244,22 @@ generate_ddl_from_conf() {
             
             # 拼接字段语句
             if (count > 0) printf ",\n" >> "'"$ddl_path"'";
-            printf "    `%s` %s COMMENT '\''%s'\''", col_name, col_type, col_comment >> "'"$ddl_path"'";
+            printf "    \`%s\` %s COMMENT '\''%s'\''", col_name, col_type, col_comment >> "'"$ddl_path"'";
             count++;
         }
     ' "$conf_file"
 
-    # 4. 拼接 DDL 尾部（指定分区、分隔符与存储格式）
+    # 6. 拼接 DDL 尾部（智能兼容分区设定与自定义物理存储配置）
     echo "" >> "$ddl_path"
     echo ") COMMENT '${tbl_comment}'" >> "$ddl_path"
-    echo "PARTITIONED BY (${PARTITION_COL} ${PARTITION_COL_TYPE})" >> "$ddl_path"
-    #echo "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\001'" >> "$ddl_path"
-    echo "STORED AS ORC;" >> "$ddl_path"
-    #echo "STORED AS ORC tblproperties ('orc.compress'='SNAPPY');" >> "$ddl_path"
+    echo "PARTITIONED BY (${PARTITION_COL:-dt} ${PARTITION_COL_TYPE:-STRING})" >> "$ddl_path"
+    echo "ROW FORMAT DELIMITED FIELDS TERMINATED BY '${field_delim}'" >> "$ddl_path"
+    
+    #if [ "$file_format" = "ORC" ]; then
+    #    echo "STORED AS ORC tblproperties ('orc.compress'='SNAPPY');" >> "$ddl_path"
+    #else
+        echo "STORED AS ${file_format};" >> "$ddl_path"
+    #fi
 
     # 导出全局变量供调用者使用
     export GENERATED_DDL_PATH="$ddl_path"

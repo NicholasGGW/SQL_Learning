@@ -51,7 +51,7 @@ process_dws_table() {
         return 1
     fi
 
-    # 3.1 提取并校验依赖的上游 DWD 表是否存在
+    # 3.1 提取并校验依赖的上游 DWD/DIM 表是否存在
     echo "[INFO] 正在校验 ${target_table} 的上游 DWD 依赖..."
     # 使用正则从 conf 文件中抓取所有 dwd_及dim_ 开头的表名并去重
     local dependent_dwd_tables=$(grep -oE "\b(dwd_|dim_)[a-zA-Z0-9_]+\b" "$conf_file" | sort | uniq)
@@ -88,6 +88,7 @@ process_dws_table() {
                 rm -f "$GENERATED_DDL_PATH"
             else
                 echo "[WARN] 用户不认可建表语句。"
+                return 1
             fi
         else
             echo "[WARN] 用户拒绝创建表，跳过当前表的处理。"
@@ -120,7 +121,8 @@ process_dws_table() {
 echo "[INFO] 开始扫描并处理 DWS 层模型配置..."
 for conf_file in $(find "$DWS_CONF_DIR" -name "*.conf"); do
     process_dws_table "$conf_file"
-    [ $? -eq 0 ] && ((SUCCESS_COUNT++)) || ((FAIL_COUNT++))
+    #((SUCCESS_COUNT++)) 是后自增，会先返回结果（而坑点sh中计算结果>0的会返回结果0，计算结果=0的结果是1，如果变量初始值是0，那么就会返回1，就会执行||后的内容）
+    [ $? -eq 0 ] && ((++SUCCESS_COUNT)) || ((++FAIL_COUNT))
 done
 
 echo "=========================================="
