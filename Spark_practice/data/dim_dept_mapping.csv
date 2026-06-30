@@ -1,0 +1,9 @@
+source_system,source_code,source_name,std_dept_code,std_dept_name,valid_from,valid_to
+issue,D001,无线研发部,DEPT_WL,无线研发部,2026-01-01,9999-12-31
+task,WLY,无线研发部,DEPT_WL,无线研发部,2026-01-01,9999-12-31
+issue,D002,核心网研发部,DEPT_HXW,核心网研发部,2026-01-01,9999-12-31
+task,HXW,核心网研发部,DEPT_HXW,核心网研发部,2026-01-01,9999-12-31
+issue,D003,终端研发部,DEPT_ZD,终端研发部,2026-01-01,9999-12-31
+task,ZD,终端研发部,DEPT_ZD,终端研发部,2026-01-01,9999-12-31
+issue,D004,云核心部,DEPT_YHX,云核心部,2026-01-01,9999-12-31
+task,YHX,云核心部,DEPT_YHX,云核心部,2026-01-01,9999-12-31
